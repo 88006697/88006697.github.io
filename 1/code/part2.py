@@ -2,8 +2,8 @@
 SYDE 572 Assignment 1 - Part 2
 Fit a line and a parabola to 4 points by minimizing the mean squared error.
 
-    line     y = m*x + b
-    parabola y = a*x^2 + b
+    line     y = m*x + b            2 parameters
+    parabola y = a*x^2 + b*x + c    3 parameters
 
 MSE(theta) = (1/n) * sum (yhat_i - y_i)^2
 
@@ -19,7 +19,7 @@ import numpy as np
 X = np.array([0.0, 2.0, 1.0, 3.0])
 Y = np.array([0.5, 3.5, 1.5, 7.5])
 
-NAMES = {"line": ["m", "b"], "parabola": ["a", "b"]}
+NAMES = {"line": ["m", "b"], "parabola": ["a", "b", "c"]}
 
 
 def design(model, x):
@@ -29,7 +29,7 @@ def design(model, x):
     if model == "line":
         return np.column_stack([x, np.ones_like(x)])
     elif model == "parabola":
-        return np.column_stack([x ** 2, np.ones_like(x)])
+        return np.column_stack([x ** 2, x, np.ones_like(x)])
     else:
         raise ValueError("unknown model " + model)
 
@@ -58,19 +58,20 @@ def fit_analytic(model, x=X, y=Y):
     return np.linalg.solve(A, rhs), A, rhs
 
 
-def fit_one_at_a_time(model, theta0=None, x=X, y=Y, tol=1e-10, max_sweeps=5000):
+def fit_one_at_a_time(model, theta0=None, x=X, y=Y, tol=1e-10, max_sweeps=20000):
     """Newton-Raphson on one parameter at a time. For parameter j:
         theta_j <- theta_j - (dMSE/dtheta_j) / (d2MSE/dtheta_j^2)
     The MSE is quadratic in each parameter on its own, so this one step lands
-    on the best theta_j for the current value of the other one.
+    on the best theta_j for the current values of the others.
     """
-    theta = np.zeros(2) if theta0 is None else np.array(theta0, dtype=float)
+    p = len(NAMES[model])
+    theta = np.zeros(p) if theta0 is None else np.array(theta0, dtype=float)
     H = second(model, x)
     history = [(0, None, theta.copy(), mse(theta, model, x, y))]
 
     for sweep in range(1, max_sweeps + 1):
         old = theta.copy()
-        for j in range(2):
+        for j in range(p):
             g = grad(theta, model, x, y)
             theta[j] = theta[j] - g[j] / H[j, j]
             history.append((sweep, NAMES[model][j], theta.copy(),
@@ -98,7 +99,8 @@ if __name__ == "__main__":
     for model in ["line", "parabola"]:
         th, A, rhs = fit_analytic(model)
         th1, hist1 = fit_one_at_a_time(model)
-        fits[model] = dict(theta=th, hist=hist1, mse=mse(th, model))
+        fits[model] = dict(theta=th, hist=hist1, sweeps=hist1[-1][0],
+                           mse=mse(th, model))
 
         print("\n" + model)
         print(" normal equations matrix:\n", A, "\n rhs:", rhs)
@@ -111,11 +113,13 @@ if __name__ == "__main__":
 
     # first few updates, to compare with the hand calculation
     for model in ["line", "parabola"]:
+        names = NAMES[model]
         print("\nfirst updates for", model)
-        print(f"{'sweep':>6} {'param':>6} {NAMES[model][0]:>11} "
-              f"{NAMES[model][1]:>11} {'MSE':>11}")
+        head = f"{'sweep':>6} {'param':>6}" + "".join(f"{n:>11}" for n in names)
+        print(head + f"{'MSE':>11}")
         for (sw, par, th, m) in fits[model]["hist"][:9]:
-            print(f"{sw:6d} {str(par):>6} {th[0]:11.6f} {th[1]:11.6f} {m:11.6f}")
+            row = f"{sw:6d} {str(par):>6}" + "".join(f"{v:11.6f}" for v in th)
+            print(row + f"{m:11.6f}")
 
     # plot 1: the fits
     gx = np.linspace(-0.3, 3.3, 200)
@@ -124,7 +128,7 @@ if __name__ == "__main__":
     plt.plot(gx, curve("line", fits["line"]["theta"], gx), 'k-',
              label=f"line y = 2.3x - 0.2, MSE = {fits['line']['mse']:.5f}")
     plt.plot(gx, curve("parabola", fits["parabola"]["theta"], gx), 'b--',
-             label=f"parabola y = 0.7653x^2 + 0.5714, "
+             label=f"parabola y = 0.75x^2 + 0.05x + 0.55, "
                    f"MSE = {fits['parabola']['mse']:.5f}")
     plt.xlabel('x'); plt.ylabel('y')
     plt.title('Least squares fits')
@@ -132,37 +136,34 @@ if __name__ == "__main__":
     plt.savefig('../media/p2_fits.png', dpi=120, bbox_inches='tight')
     plt.close()
 
-    # ------ plot 2: path on the MSE surface ------
-    # start away from the answer so the staircase is visible
-    starts = {"line": (0.0, 2.5), "parabola": (0.0, 3.0)}
-    window = {"line": (2.5, 3.0), "parabola": (1.0, 3.0)}
-    plt.figure(figsize=(11, 4.2))
-    for k, model in enumerate(["line", "parabola"]):
-        plt.subplot(1, 2, k + 1)
-        th = fits[model]["theta"]
-        wu, wv = window[model]
-        u = np.linspace(th[0] - wu, th[0] + wu, 120)
-        v = np.linspace(th[1] - wv, th[1] + wv, 120)
-        U, V = np.meshgrid(u, v)
-        Z = np.zeros_like(U)
-        for i in range(U.shape[0]):
-            for j in range(U.shape[1]):
-                Z[i, j] = mse(np.array([U[i, j], V[i, j]]), model)
-        plt.contour(U, V, Z, levels=20, colors='0.7', linewidths=0.6)
+    # ------ plot 2: path on the MSE surface, line only ------
+    # the parabola has 3 parameters so it cannot be drawn as a 2D contour.
+    # start away from the answer so the staircase is visible.
+    start = (0.0, 2.5)
+    th = fits["line"]["theta"]
+    u = np.linspace(th[0] - 2.5, th[0] + 2.5, 120)
+    v = np.linspace(th[1] - 3.0, th[1] + 3.0, 120)
+    U, V = np.meshgrid(u, v)
+    Z = np.zeros_like(U)
+    for i in range(U.shape[0]):
+        for j in range(U.shape[1]):
+            Z[i, j] = mse(np.array([U[i, j], V[i, j]]), "line")
 
-        _, hist = fit_one_at_a_time(model, theta0=starts[model], max_sweeps=8)
-        path = np.array([h[2] for h in hist])
-        plt.plot(path[:, 0], path[:, 1], 'b.-')
-        plt.plot(starts[model][0], starts[model][1], 'go', ms=7, label='start')
-        plt.plot(th[0], th[1], 'ro', ms=7, label='answer')
-        plt.xlabel(NAMES[model][0]); plt.ylabel(NAMES[model][1])
-        plt.title(f'MSE contours, {model}')
-        plt.legend(fontsize=8)
-    plt.tight_layout()
+    plt.figure(figsize=(6, 4.5))
+    plt.contour(U, V, Z, levels=20, colors='0.7', linewidths=0.6)
+    _, hist = fit_one_at_a_time("line", theta0=start, max_sweeps=8)
+    path = np.array([h[2] for h in hist])
+    plt.plot(path[:, 0], path[:, 1], 'b.-')
+    plt.plot(start[0], start[1], 'go', ms=7, label='start')
+    plt.plot(th[0], th[1], 'ro', ms=7, label='answer')
+    plt.xlabel('m'); plt.ylabel('b')
+    plt.title('MSE contours for the line, one parameter at a time')
+    plt.legend(fontsize=8)
     plt.savefig('../media/p2_contours.png', dpi=120, bbox_inches='tight')
     plt.close()
 
     # ---------- plot 3: intermediate fits ----------
+    starts = {"line": (0.0, 2.5), "parabola": (0.0, 0.0, 3.0)}
     plt.figure(figsize=(11, 4))
     for k, model in enumerate(["line", "parabola"]):
         plt.subplot(1, 2, k + 1)

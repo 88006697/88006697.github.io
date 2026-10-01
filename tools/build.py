@@ -261,11 +261,11 @@ n = 4 data points is</p>
 
 <p>MSE(theta) = (1/n) * sum of (yhat(x_i) - y_i)^2</p>
 
-<p>Two models are fitted, each with two parameters to optimize:</p>
+<p>Two models are fitted:</p>
 
 <ul>
-<li>line, y = mx + b, with slope m and intercept b</li>
-<li>parabola, y = ax^2 + b, with a and the intercept b</li>
+<li>line, y = mx + b, with slope m and intercept b, so 2 parameters</li>
+<li>parabola, y = ax^2 + bx + c, so 3 parameters</li>
 </ul>
 
 <p>Both models are linear in their parameters even though the parabola is not
@@ -276,10 +276,19 @@ sum x^3 = 36, sum x^4 = 98, sum y = 13, sum xy = 31 and sum x^2 y = 83.</p>
 
 <h3>Analytical solution</h3>
 
-<p>Setting both partial derivatives to zero gives two linear equations in the
-two parameters, which are solved directly. For the line this is
-14m + 6b = 31 and 6m + 4b = 13, and for the parabola 98a + 14b = 83 and
-14a + 4b = 13. The full working is on the handwritten page below.</p>
+<p>Setting every partial derivative to zero gives one linear equation per
+parameter, and those are solved directly. For the line that is</p>
+
+<p>14m + 6b = 31<br>
+6m + 4b = 13</p>
+
+<p>and for the parabola</p>
+
+<p>98a + 36b + 14c = 83<br>
+36a + 14b + 6c = 31<br>
+14a + 6b + 4c = 13</p>
+
+<p>The full working is on the handwritten page below.</p>
 
 {scan(["scan3.jpg"], "Part 2 by hand: line and parabola")}
 
@@ -293,14 +302,22 @@ repeat. For parameter j the update is</p>
 
 <p>Because the MSE is quadratic in each parameter on its own, this single
 Newton step lands exactly on the best value of that parameter for the current
-value of the other one. There is no approximation in the inner step at all, so
-all of the iterating happens in the outer loop that alternates between the two
+values of the others. There is no approximation in the inner step at all, so
+all of the iterating happens in the outer loop that cycles through the
 parameters. Substituting the sums, the two updates for the line work out to</p>
 
-<p>m &lt;- (31 - 6b) / 14 and b &lt;- (13 - 6m) / 4</p>
+<p>m &lt;- (31 - 6b) / 14<br>
+b &lt;- (13 - 6m) / 4</p>
 
-<p>and for the parabola to a &lt;- (83 - 14b) / 98 and b &lt;- (13 - 14a) / 4.
-Starting from m = 0 and b = 0 gives the table below.</p>
+<p>and the three for the parabola to</p>
+
+<p>a &lt;- (83 - 36b - 14c) / 98<br>
+b &lt;- (31 - 36a - 6c) / 14<br>
+c &lt;- (13 - 14a - 6b) / 4</p>
+
+<p>Starting every parameter at 0 gives the tables below. The parabola cycles
+a, then b, then c, and only counts as one sweep once all three have been
+updated.</p>
 
 <table>
 <tr><th>sweep</th><th>parameter</th><th>m</th><th>b</th><th>MSE</th></tr>
@@ -314,20 +331,37 @@ Starting from m = 0 and b = 0 gives the table below.</p>
 </table>
 <p class="caption">First updates for the line, starting from m = 0, b = 0.</p>
 
-<p>The first sweep gets most of the way there, dropping the MSE from 17.75 to
-0.584, but the remaining error shrinks slowly and steadily after that. The
-error in m goes -0.0857, -0.0551, -0.0354 and so on, which is a constant ratio
-rather than the doubling accuracy Newton gives on a single variable. The reason
-is that each update is only optimal for one parameter while the other is held
-wrong, so the method has to keep going back and forth. It takes 48 sweeps to
-reach a tolerance of 1e-10 for the line and 33 for the parabola.</p>
+<table>
+<tr><th>sweep</th><th>parameter</th><th>a</th><th>b</th><th>c</th><th>MSE</th></tr>
+<tr><td>0</td><td>start</td><td>0.000000</td><td>0.000000</td><td>0.000000</td><td>17.750000</td></tr>
+<tr><td>1</td><td>a</td><td>0.846939</td><td>0.000000</td><td>0.000000</td><td>0.176020</td></tr>
+<tr><td>1</td><td>b</td><td>0.846939</td><td>0.036443</td><td>0.000000</td><td>0.171372</td></tr>
+<tr><td>1</td><td>c</td><td>0.846939</td><td>0.036443</td><td>0.231050</td><td>0.117988</td></tr>
+<tr><td>2</td><td>a</td><td>0.800544</td><td>0.036443</td><td>0.231050</td><td>0.065253</td></tr>
+<tr><td>2</td><td>b</td><td>0.800544</td><td>0.056722</td><td>0.231050</td><td>0.063814</td></tr>
+<tr><td>2</td><td>c</td><td>0.800544</td><td>0.056722</td><td>0.363012</td><td>0.046400</td></tr>
+</table>
+<p class="caption">First updates for the parabola, starting from a = b = c = 0.</p>
 
-<img src="media/p2_contours.png" alt="MSE contours with the path of the updates">
-<p class="caption">Intermediate steps drawn on the MSE surface. Because only
-one parameter changes per update, every move is either horizontal or vertical
-and the path is a staircase down the valley. Both plots start away from the
-answer so the steps are visible, since starting from (0, 0) the very first step
-already lands almost on top of the answer.</p>
+<p>The first sweep gets most of the way there, dropping the MSE from 17.75 to
+0.584 for the line, but the remaining error shrinks slowly and steadily after
+that. The error in m goes -0.0857, -0.0551, -0.0354 and so on, which is a
+constant ratio rather than the doubling accuracy Newton gives on a single
+variable. The reason is that each update is only optimal for one parameter
+while the others are held wrong, so the method has to keep cycling. It takes 48
+sweeps to reach a tolerance of 1e-10 for the line and 476 for the parabola. The
+parabola is much slower because its three columns x^2, x and 1 are strongly
+correlated over x in [0, 3], so changing one parameter throws the other two off
+by a lot and each sweep only claws back a small part of the error.</p>
+
+<img src="media/p2_contours.png" alt="MSE contours for the line with the path of the updates">
+<p class="caption">Intermediate steps drawn on the MSE surface for the line.
+Because only one parameter changes per update, every move is either horizontal
+or vertical and the path is a staircase down the valley. This plot starts at
+(0, 2.5) rather than (0, 0) so the steps are visible, since from (0, 0) the
+first step already lands almost on top of the answer. The parabola has three
+parameters so its surface cannot be drawn as a 2D contour, but the next plot
+shows its intermediate fits.</p>
 
 <img src="media/p2_steps.png" alt="The fitted curve after each of the first updates">
 <p class="caption">The same first six updates seen as fitted curves, with the
@@ -338,16 +372,22 @@ final answer dashed.</p>
 <table>
 <tr><th>Model</th><th>Fitted equation</th><th>MSE</th></tr>
 <tr><td>line</td><td>y = 2.3x - 0.2</td><td>0.5750000</td></tr>
-<tr><td>parabola</td><td>y = 0.765306x^2 + 0.571429</td><td>0.0127551</td></tr>
+<tr><td>parabola</td><td>y = 0.75x^2 + 0.05x + 0.55</td><td>0.0125000</td></tr>
 </table>
 
 <p>The one parameter at a time method reaches the same answers as the
 analytical solution, which is the check that it is working. The parabola fits
-far better, with an MSE about 45 times smaller. That makes sense from the data:
-the y values 0.5, 1.5, 3.5, 7.5 grow faster and faster as x increases, which is
-curvature that a straight line has no way to follow. The line ends up too high
-in the middle and too low at both ends, while the parabola tracks all four
-points closely.</p>
+far better, with an MSE 46 times smaller. That makes sense from the data: the y
+values 0.5, 1.5, 3.5, 7.5 grow faster and faster as x increases, which is
+curvature that a straight line has no way to follow. The line residuals are
+-0.7, 0.6, 0.9 and -0.8 going left to right, so it sits too low at both ends
+and too high in the middle, which is the pattern you get when a model is
+missing curvature. The parabola residuals are 0.05, -0.15, 0.15 and -0.05, much
+smaller and with no obvious pattern left.</p>
+
+<p>Worth noting that with 4 data points and 3 parameters the parabola is close
+to interpolating the data, so a lower MSE on its own does not prove it is the
+better model. It only takes one more parameter to fit the 4 points exactly.</p>
 
 <img src="media/p2_fits.png" alt="The two fitted curves and the data">
 
